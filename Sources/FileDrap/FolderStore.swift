@@ -171,18 +171,15 @@ final class FolderStore: ObservableObject {
         }
     }
 
-    func renameItem(_ fileItem: FileItem) {
-        guard let nextName = promptRenameName(for: fileItem.url.lastPathComponent) else {
-            return
-        }
-
+    @discardableResult
+    func renameItem(_ fileItem: FileItem, to nextName: String) -> Bool {
         let trimmed = nextName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             errorMessage = "名称不能为空"
-            return
+            return false
         }
         guard trimmed != fileItem.url.lastPathComponent else {
-            return
+            return true
         }
 
         let parentURL = fileItem.url.deletingLastPathComponent()
@@ -190,7 +187,7 @@ final class FolderStore: ObservableObject {
 
         if FileManager.default.fileExists(atPath: nextURL.path) {
             errorMessage = "重命名失败：目标名称已存在"
-            return
+            return false
         }
 
         do {
@@ -199,8 +196,10 @@ final class FolderStore: ObservableObject {
             persistRecents()
             refreshFiles()
             errorMessage = nil
+            return true
         } catch {
             errorMessage = "重命名失败：\(error.localizedDescription)"
+            return false
         }
     }
 
@@ -379,22 +378,4 @@ final class FolderStore: ObservableObject {
         activeSecurityScopeFolderID = nil
     }
 
-    private func promptRenameName(for currentName: String) -> String? {
-        let alert = NSAlert()
-        alert.messageText = "重命名"
-        alert.informativeText = "请输入新的名称"
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "确定")
-        alert.addButton(withTitle: "取消")
-
-        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        textField.stringValue = currentName
-        alert.accessoryView = textField
-
-        let result = alert.runModal()
-        guard result == .alertFirstButtonReturn else {
-            return nil
-        }
-        return textField.stringValue
-    }
 }

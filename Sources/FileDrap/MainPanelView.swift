@@ -3,6 +3,8 @@ import SwiftUI
 
 struct MainPanelView: View {
     @EnvironmentObject private var store: FolderStore
+    @State private var renamingFileID: String?
+    @State private var renamingText = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -90,6 +92,8 @@ struct MainPanelView: View {
                 }
             }
             .onChange(of: store.selectedFolderID) { _ in
+                renamingFileID = nil
+                renamingText = ""
                 store.refreshFiles()
             }
 
@@ -162,13 +166,35 @@ struct MainPanelView: View {
 
                     Section(store.searchQuery.isEmpty ? "Current Folder" : "Search Results") {
                         ForEach(store.fileItems) { file in
-                            FileRow(file: file, onOpenInFinder: {
-                                store.openInFinder(file)
-                            }, onRename: {
-                                store.renameItem(file)
-                            }, onMoveToTrash: {
+                            FileRow(
+                                file: file,
+                                isRenaming: renamingFileID == file.id,
+                                renameText: $renamingText,
+                                onOpenInFinder: {
+                                    store.openInFinder(file)
+                                },
+                                onStartRename: {
+                                    renamingFileID = file.id
+                                    renamingText = file.url.lastPathComponent
+                                },
+                                onCommitRename: {
+                                    if store.renameItem(file, to: renamingText) {
+                                        renamingFileID = nil
+                                        renamingText = ""
+                                    }
+                                },
+                                onCancelRename: {
+                                    renamingFileID = nil
+                                    renamingText = ""
+                                },
+                                onMoveToTrash: {
+                                    if renamingFileID == file.id {
+                                        renamingFileID = nil
+                                        renamingText = ""
+                                    }
                                 store.moveItemToTrash(file)
-                            })
+                                }
+                            )
                         }
                     }
                 }
@@ -197,15 +223,23 @@ struct MainPanelView: View {
 
 private struct FileRow: View {
     let file: FileItem
+    let isRenaming: Bool
+    @Binding var renameText: String
     let onOpenInFinder: () -> Void
-    let onRename: () -> Void
+    let onStartRename: () -> Void
+    let onCommitRename: () -> Void
+    let onCancelRename: () -> Void
     let onMoveToTrash: () -> Void
 
     var body: some View {
         QuickFileRow(
             url: file.url,
+            isRenaming: isRenaming,
+            renameText: $renameText,
             onOpenInFinder: onOpenInFinder,
-            onRename: onRename,
+            onRename: onStartRename,
+            onCommitRename: onCommitRename,
+            onCancelRename: onCancelRename,
             onMoveToTrash: onMoveToTrash
         ) {
             if file.isDirectory {
@@ -219,21 +253,34 @@ private struct FileRow: View {
 
 private struct QuickFileRow<Trailing: View>: View {
     let url: URL
+    let isRenaming: Bool
+    @Binding var renameText: String
     let onOpenInFinder: () -> Void
     let onRename: (() -> Void)?
+    let onCommitRename: (() -> Void)?
+    let onCancelRename: (() -> Void)?
     let onMoveToTrash: (() -> Void)?
     @ViewBuilder var trailing: Trailing
+    @FocusState private var renameFieldFocused: Bool
 
     init(
         url: URL,
+        isRenaming: Bool = false,
+        renameText: Binding<String> = .constant(""),
         onOpenInFinder: @escaping () -> Void,
         onRename: (() -> Void)? = nil,
+        onCommitRename: (() -> Void)? = nil,
+        onCancelRename: (() -> Void)? = nil,
         onMoveToTrash: (() -> Void)? = nil,
         @ViewBuilder trailing: () -> Trailing = { EmptyView() }
     ) {
         self.url = url
+        self.isRenaming = isRenaming
+        self._renameText = renameText
         self.onOpenInFinder = onOpenInFinder
         self.onRename = onRename
+        self.onCommitRename = onCommitRename
+        self.onCancelRename = onCancelRename
         self.onMoveToTrash = onMoveToTrash
         self.trailing = trailing()
     }
@@ -246,8 +293,25 @@ private struct QuickFileRow<Trailing: View>: View {
                 .frame(width: 18, height: 18)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(url.lastPathComponent)
-                    .lineLimit(1)
+                if isRenaming {
+                    TextField("", text: $renameText)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($renameFieldFocused)
+                        .onSubmit {
+                            onCommitRename?()
+                        }
+                        .onExitCommand {
+                            onCancelRename?()
+                        }
+                        .onAppear {
+                            DispatchQueue.main.async {
+                                renameFieldFocused = true
+                            }
+                        }
+                } else {
+                    Text(url.lastPathComponent)
+                        .lineLimit(1)
+                }
                 Text(url.path)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -270,7 +334,11 @@ private struct QuickFileRow<Trailing: View>: View {
             }
             Button("在 Finder 中显示", action: onOpenInFinder)
         }
-        .onTapGesture(count: 2, perform: onOpenInFinder)
+        .onTapGesture(count: 2) {
+            if !isRenaming {
+                onOpenInFinder()
+            }
+        }
         .onDrag {
             let suggestedName = dragSuggestedName(for: url)
             if let provider = NSItemProvider(contentsOf: url) {
