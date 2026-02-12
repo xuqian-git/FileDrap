@@ -226,8 +226,8 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = FileDrap;
-				INFOPLIST_KEY_CFBundleName = FileDrap;
+				INFOPLIST_KEY_CFBundleDisplayName = "文件拖拖";
+				INFOPLIST_KEY_CFBundleName = "文件拖拖";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -341,8 +341,8 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = FileDrap;
-				INFOPLIST_KEY_CFBundleName = FileDrap;
+				INFOPLIST_KEY_CFBundleDisplayName = "文件拖拖";
+				INFOPLIST_KEY_CFBundleName = "文件拖拖";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

@@ -15,7 +15,7 @@ struct MainPanelView: View {
 
     private var toolbar: some View {
         HStack(spacing: 10) {
-            Label("FileDrap", systemImage: "shippingbox")
+            Label("文件拖拖", systemImage: "shippingbox")
                 .font(.headline)
 
             Spacer()

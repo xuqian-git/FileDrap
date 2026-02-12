@@ -18,7 +18,7 @@ final class QuickPanelController {
             backing: .buffered,
             defer: false
         )
-        panel.title = "FileDrap"
+        panel.title = "文件拖拖"
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]

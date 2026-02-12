@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP_NAME="FileDrap"
+SCHEME_NAME="FileDrap"
+PROJECT_NAME="FileDrap"
+APP_PRODUCT_NAME="FileDrap"
+DIST_NAME="文件拖拖"
 BUILD_ROOT="$ROOT/build/local"
 DERIVED="$BUILD_ROOT/DerivedData"
 DIST="$ROOT/dist"
@@ -13,8 +16,8 @@ cd "$ROOT"
 xcodegen generate >/dev/null
 
 xcodebuild \
-  -project "$APP_NAME.xcodeproj" \
-  -scheme "$APP_NAME" \
+  -project "$PROJECT_NAME.xcodeproj" \
+  -scheme "$SCHEME_NAME" \
   -configuration Release \
   -sdk macosx \
   -derivedDataPath "$DERIVED" \
@@ -22,7 +25,7 @@ xcodebuild \
   CODE_SIGNING_REQUIRED=NO \
   build >/dev/null
 
-APP_SRC="$DERIVED/Build/Products/Release/$APP_NAME.app"
+APP_SRC="$DERIVED/Build/Products/Release/$APP_PRODUCT_NAME.app"
 if [[ ! -d "$APP_SRC" ]]; then
   echo "Build output missing: $APP_SRC" >&2
   exit 1
@@ -30,14 +33,14 @@ fi
 
 rm -rf "$DIST"
 mkdir -p "$DIST"
-cp -R "$APP_SRC" "$DIST/"
+cp -R "$APP_SRC" "$DIST/$DIST_NAME.app"
 
-ZIP_PATH="$DIST/${APP_NAME}-local-${STAMP}.zip"
-DMG_PATH="$DIST/${APP_NAME}-local-${STAMP}.dmg"
+ZIP_PATH="$DIST/${DIST_NAME}-local-${STAMP}.zip"
+DMG_PATH="$DIST/${DIST_NAME}-local-${STAMP}.dmg"
 
-/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$DIST/$APP_NAME.app" "$ZIP_PATH"
-/usr/bin/hdiutil create -volname "$APP_NAME" -srcfolder "$DIST/$APP_NAME.app" -ov -format UDZO "$DMG_PATH" >/dev/null
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$DIST/$DIST_NAME.app" "$ZIP_PATH"
+/usr/bin/hdiutil create -volname "$DIST_NAME" -srcfolder "$DIST/$DIST_NAME.app" -ov -format UDZO "$DMG_PATH" >/dev/null
 
-echo "App: $DIST/$APP_NAME.app"
+echo "App: $DIST/$DIST_NAME.app"
 echo "Zip: $ZIP_PATH"
 echo "Dmg: $DMG_PATH"
