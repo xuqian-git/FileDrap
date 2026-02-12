@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -13,6 +14,11 @@ struct FileDrapApp: App {
         } label: {
             Image(systemName: "folder.badge.gearshape")
                 .symbolRenderingMode(.hierarchical)
+                .contextMenu {
+                    Button("退出文件拖拖") {
+                        NSApp.terminate(nil)
+                    }
+                }
         }
         .menuBarExtraStyle(.window)
     }

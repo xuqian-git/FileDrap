@@ -52,6 +52,13 @@ struct MainPanelView: View {
                 Image(systemName: store.sortByNameAscending ? "arrow.down" : "arrow.up")
             }
             .help("Toggle sort order")
+
+            Button {
+                NSApp.terminate(nil)
+            } label: {
+                Label("退出", systemImage: "power")
+            }
+            .buttonStyle(.bordered)
         }
         .padding(12)
     }

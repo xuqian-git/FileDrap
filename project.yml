@@ -23,6 +23,7 @@ targets:
         INFOPLIST_KEY_CFBundleName: 文件拖拖
         INFOPLIST_KEY_CFBundleDisplayName: 文件拖拖
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_LSUIElement: YES
         CODE_SIGN_STYLE: Automatic
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: Sources/FileDrap/FileDrap.entitlements

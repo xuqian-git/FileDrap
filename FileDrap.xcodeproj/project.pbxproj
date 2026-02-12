@@ -229,6 +229,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "文件拖拖";
 				INFOPLIST_KEY_CFBundleName = "文件拖拖";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -344,6 +345,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "文件拖拖";
 				INFOPLIST_KEY_CFBundleName = "文件拖拖";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
