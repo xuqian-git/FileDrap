@@ -139,8 +139,6 @@ struct MainPanelView: View {
                                 QuickFileRow(url: url) {
                                     store.markFileUsed(url)
                                     store.openInFinder(FileItem(url: url, isDirectory: false))
-                                } onStartDrag: {
-                                    store.markFileUsed(url)
                                 }
                             }
                         } header: {
@@ -159,8 +157,6 @@ struct MainPanelView: View {
                         ForEach(store.fileItems) { file in
                             FileRow(file: file, onOpenInFinder: {
                                 store.openInFinder(file)
-                            }, onStartDrag: {
-                                store.markFileUsed(file.url)
                             })
                         }
                     }
@@ -191,10 +187,9 @@ struct MainPanelView: View {
 private struct FileRow: View {
     let file: FileItem
     let onOpenInFinder: () -> Void
-    let onStartDrag: () -> Void
 
     var body: some View {
-        QuickFileRow(url: file.url, onOpenInFinder: onOpenInFinder, onStartDrag: onStartDrag) {
+        QuickFileRow(url: file.url, onOpenInFinder: onOpenInFinder) {
             if file.isDirectory {
                 Text("DIR")
                     .font(.caption2)
@@ -207,18 +202,15 @@ private struct FileRow: View {
 private struct QuickFileRow<Trailing: View>: View {
     let url: URL
     let onOpenInFinder: () -> Void
-    let onStartDrag: () -> Void
     @ViewBuilder var trailing: Trailing
 
     init(
         url: URL,
         onOpenInFinder: @escaping () -> Void,
-        onStartDrag: @escaping () -> Void,
         @ViewBuilder trailing: () -> Trailing = { EmptyView() }
     ) {
         self.url = url
         self.onOpenInFinder = onOpenInFinder
-        self.onStartDrag = onStartDrag
         self.trailing = trailing()
     }
 
@@ -247,8 +239,7 @@ private struct QuickFileRow<Trailing: View>: View {
         }
         .onTapGesture(count: 2, perform: onOpenInFinder)
         .onDrag {
-            onStartDrag()
-            return NSItemProvider(contentsOf: url) ?? NSItemProvider(object: url as NSURL)
+            NSItemProvider(object: url as NSURL)
         }
     }
 }
