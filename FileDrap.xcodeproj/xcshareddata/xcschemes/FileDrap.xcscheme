@@ -39,6 +39,16 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "45B321BF0FCAB73DEE5E8A73"
+               BuildableName = "FileDrapTests.xctest"
+               BlueprintName = "FileDrapTests"
+               ReferencedContainer = "container:FileDrap.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

@@ -7,18 +7,38 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		12DB1798423990EE78B57862 /* QuickPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 494EB9917AABB8E4A862F0E9 /* QuickPanelController.swift */; };
 		443F858769D566A5C6865B4D /* MainPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB13D9101C5CEE8514E9FFE9 /* MainPanelView.swift */; };
+		638A80E64E0E201D9A0E6EED /* FolderStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CAE1076BCF3BF34DEB7EE0E /* FolderStoreTests.swift */; };
+		826639E79EF81F1CE5EED334 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3545D12A99CB9A674D2869D1 /* AppDelegate.swift */; };
 		8450A67C71CADD21FD2981CE /* FileDrapApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4784B11C2BCE2AA80571E10 /* FileDrapApp.swift */; };
 		A0C2CBBE581458104283845A /* FolderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0D1C0A63CEC2465D82443E /* FolderStore.swift */; };
 		C6C084D1C35BF9FB7BD0E300 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E91B78E7DC623C1B14D4E04 /* Models.swift */; };
+		CF3B114E506F248C46B536D5 /* HotKeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB05B5EF1BE2A94E48E6A4DC /* HotKeyCenter.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		D181AEE64A06F7B499FAF306 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB01542F40DDA85B85CDA000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 63C4C55438D83089701BF7BF;
+			remoteInfo = FileDrap;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		1188FC5891AFAB9D7F125698 /* FileDrapTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FileDrapTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3545D12A99CB9A674D2869D1 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		3E91B78E7DC623C1B14D4E04 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		494EB9917AABB8E4A862F0E9 /* QuickPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickPanelController.swift; sourceTree = "<group>"; };
+		4CAE1076BCF3BF34DEB7EE0E /* FolderStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderStoreTests.swift; sourceTree = "<group>"; };
 		B4784B11C2BCE2AA80571E10 /* FileDrapApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDrapApp.swift; sourceTree = "<group>"; };
 		DB13D9101C5CEE8514E9FFE9 /* MainPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainPanelView.swift; sourceTree = "<group>"; };
 		F235C58196E02D1A615B858A /* FileDrap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FileDrap.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F76EA89A5DE06108D05B6B61 /* FileDrap.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FileDrap.entitlements; sourceTree = "<group>"; };
 		FA0D1C0A63CEC2465D82443E /* FolderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderStore.swift; sourceTree = "<group>"; };
+		FB05B5EF1BE2A94E48E6A4DC /* HotKeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyCenter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -26,6 +46,7 @@
 			isa = PBXGroup;
 			children = (
 				B028FA6EA90442E255E82138 /* Sources */,
+				7A7A38FCDAE6B29DA3D83FAD /* Tests */,
 				F44C862815F1D08EB713E97D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -33,12 +54,24 @@
 		619CBEF98C38CCE6A8581344 /* FileDrap */ = {
 			isa = PBXGroup;
 			children = (
+				3545D12A99CB9A674D2869D1 /* AppDelegate.swift */,
+				F76EA89A5DE06108D05B6B61 /* FileDrap.entitlements */,
 				B4784B11C2BCE2AA80571E10 /* FileDrapApp.swift */,
 				FA0D1C0A63CEC2465D82443E /* FolderStore.swift */,
+				FB05B5EF1BE2A94E48E6A4DC /* HotKeyCenter.swift */,
 				DB13D9101C5CEE8514E9FFE9 /* MainPanelView.swift */,
 				3E91B78E7DC623C1B14D4E04 /* Models.swift */,
+				494EB9917AABB8E4A862F0E9 /* QuickPanelController.swift */,
 			);
 			path = FileDrap;
+			sourceTree = "<group>";
+		};
+		7A7A38FCDAE6B29DA3D83FAD /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				4CAE1076BCF3BF34DEB7EE0E /* FolderStoreTests.swift */,
+			);
+			path = Tests;
 			sourceTree = "<group>";
 		};
 		B028FA6EA90442E255E82138 /* Sources */ = {
@@ -53,6 +86,7 @@
 			isa = PBXGroup;
 			children = (
 				F235C58196E02D1A615B858A /* FileDrap.app */,
+				1188FC5891AFAB9D7F125698 /* FileDrapTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -60,6 +94,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		45B321BF0FCAB73DEE5E8A73 /* FileDrapTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EC8898F26D05BDC437453A3B /* Build configuration list for PBXNativeTarget "FileDrapTests" */;
+			buildPhases = (
+				B8E38D58F352B5607669BEC7 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AFE45B90CE0F0972898CE9F9 /* PBXTargetDependency */,
+			);
+			name = FileDrapTests;
+			packageProductDependencies = (
+			);
+			productName = FileDrapTests;
+			productReference = 1188FC5891AFAB9D7F125698 /* FileDrapTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		63C4C55438D83089701BF7BF /* FileDrap */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 61B7E72B3E2703466DF29EA8 /* Build configuration list for PBXNativeTarget "FileDrap" */;
@@ -86,6 +138,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					45B321BF0FCAB73DEE5E8A73 = {
+						DevelopmentTeam = "";
+					};
 					63C4C55438D83089701BF7BF = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
@@ -107,6 +162,7 @@
 			projectRoot = "";
 			targets = (
 				63C4C55438D83089701BF7BF /* FileDrap */,
+				45B321BF0FCAB73DEE5E8A73 /* FileDrapTests */,
 			);
 		};
 /* End PBXProject section */
@@ -116,20 +172,40 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				826639E79EF81F1CE5EED334 /* AppDelegate.swift in Sources */,
 				8450A67C71CADD21FD2981CE /* FileDrapApp.swift in Sources */,
 				A0C2CBBE581458104283845A /* FolderStore.swift in Sources */,
+				CF3B114E506F248C46B536D5 /* HotKeyCenter.swift in Sources */,
 				443F858769D566A5C6865B4D /* MainPanelView.swift in Sources */,
 				C6C084D1C35BF9FB7BD0E300 /* Models.swift in Sources */,
+				12DB1798423990EE78B57862 /* QuickPanelController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B8E38D58F352B5607669BEC7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				638A80E64E0E201D9A0E6EED /* FolderStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AFE45B90CE0F0972898CE9F9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 63C4C55438D83089701BF7BF /* FileDrap */;
+			targetProxy = D181AEE64A06F7B499FAF306 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		04F7165AABB6F11BBD9D9D54 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/FileDrap/FileDrap.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -203,10 +279,45 @@
 			};
 			name = Release;
 		};
+		5C983EC7C41256DA43EC5EA0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FileDrap.app/Contents/MacOS/FileDrap";
+			};
+			name = Debug;
+		};
+		9C93830259443C210514EFD3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FileDrap.app/Contents/MacOS/FileDrap";
+			};
+			name = Release;
+		};
 		DD6DA0F959308F4CBB8EB7D6 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/FileDrap/FileDrap.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -304,6 +415,15 @@
 			buildConfigurations = (
 				FDE4B2159FD13D54894A7068 /* Debug */,
 				1925BE668DB713DF547218B8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EC8898F26D05BDC437453A3B /* Build configuration list for PBXNativeTarget "FileDrapTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5C983EC7C41256DA43EC5EA0 /* Debug */,
+				9C93830259443C210514EFD3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

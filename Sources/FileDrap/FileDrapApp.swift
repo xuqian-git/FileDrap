@@ -2,7 +2,8 @@ import SwiftUI
 
 @main
 struct FileDrapApp: App {
-    @StateObject private var store = FolderStore()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var store = FolderStore.shared
 
     var body: some Scene {
         MenuBarExtra {

@@ -20,6 +20,10 @@ struct MainPanelView: View {
 
             Spacer()
 
+            TextField("Search files", text: $store.searchQuery)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 220)
+
             Button {
                 store.addFolder()
             } label: {
@@ -57,7 +61,7 @@ struct MainPanelView: View {
             folderSidebar
                 .frame(minWidth: 220, maxWidth: 280)
             fileList
-                .frame(minWidth: 360)
+                .frame(minWidth: 420)
         }
     }
 
@@ -119,16 +123,47 @@ struct MainPanelView: View {
                     title: "No folder selected",
                     detail: "Click Add Folder to add your frequently used paths."
                 )
-            } else if store.fileItems.isEmpty {
+            } else if store.isLoading {
+                ProgressView("Loading files...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if store.fileItems.isEmpty && store.searchQuery.isEmpty {
                 emptyState(
                     title: "No files",
                     detail: "This folder is empty or hidden files are filtered out."
                 )
             } else {
-                List(store.fileItems) { file in
-                    FileRow(file: file, onOpenInFinder: {
-                        store.openInFinder(file)
-                    })
+                List {
+                    if store.searchQuery.isEmpty && !store.recentFiles.isEmpty {
+                        Section {
+                            ForEach(store.recentFiles, id: \.path) { url in
+                                QuickFileRow(url: url) {
+                                    store.markFileUsed(url)
+                                    store.openInFinder(FileItem(url: url, isDirectory: false))
+                                } onStartDrag: {
+                                    store.markFileUsed(url)
+                                }
+                            }
+                        } header: {
+                            HStack {
+                                Text("Recent")
+                                Spacer()
+                                Button("Clear") {
+                                    store.clearRecentFiles()
+                                }
+                                .buttonStyle(.link)
+                            }
+                        }
+                    }
+
+                    Section(store.searchQuery.isEmpty ? "Current Folder" : "Search Results") {
+                        ForEach(store.fileItems) { file in
+                            FileRow(file: file, onOpenInFinder: {
+                                store.openInFinder(file)
+                            }, onStartDrag: {
+                                store.markFileUsed(file.url)
+                            })
+                        }
+                    }
                 }
                 .listStyle(.inset)
                 .padding(.top, 4)
@@ -156,30 +191,55 @@ struct MainPanelView: View {
 private struct FileRow: View {
     let file: FileItem
     let onOpenInFinder: () -> Void
+    let onStartDrag: () -> Void
+
+    var body: some View {
+        QuickFileRow(url: file.url, onOpenInFinder: onOpenInFinder, onStartDrag: onStartDrag) {
+            if file.isDirectory {
+                Text("DIR")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct QuickFileRow<Trailing: View>: View {
+    let url: URL
+    let onOpenInFinder: () -> Void
+    let onStartDrag: () -> Void
+    @ViewBuilder var trailing: Trailing
+
+    init(
+        url: URL,
+        onOpenInFinder: @escaping () -> Void,
+        onStartDrag: @escaping () -> Void,
+        @ViewBuilder trailing: () -> Trailing = { EmptyView() }
+    ) {
+        self.url = url
+        self.onOpenInFinder = onOpenInFinder
+        self.onStartDrag = onStartDrag
+        self.trailing = trailing()
+    }
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: file.url.path))
+            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
                 .resizable()
                 .scaledToFit()
                 .frame(width: 18, height: 18)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(file.url.lastPathComponent)
+                Text(url.lastPathComponent)
                     .lineLimit(1)
-                Text(file.url.path)
+                Text(url.path)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
             Spacer()
-
-            if file.isDirectory {
-                Text("DIR")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+            trailing
         }
         .contentShape(Rectangle())
         .contextMenu {
@@ -187,7 +247,8 @@ private struct FileRow: View {
         }
         .onTapGesture(count: 2, perform: onOpenInFinder)
         .onDrag {
-            NSItemProvider(contentsOf: file.url) ?? NSItemProvider(object: file.url as NSURL)
+            onStartDrag()
+            return NSItemProvider(contentsOf: url) ?? NSItemProvider(object: url as NSURL)
         }
     }
 }

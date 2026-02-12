@@ -3,21 +3,43 @@ import Foundation
 
 @MainActor
 final class FolderStore: ObservableObject {
+    static let shared = FolderStore()
+
     @Published private(set) var folders: [FolderItem] = []
     @Published var selectedFolderID: FolderItem.ID?
-    @Published var fileItems: [FileItem] = []
+    @Published private(set) var allFileItems: [FileItem] = []
+    @Published private(set) var fileItems: [FileItem] = []
+    @Published private(set) var recentFiles: [URL] = []
     @Published var showHiddenFiles = false
     @Published var sortByNameAscending = true
+    @Published var searchQuery = "" {
+        didSet { applyFilters() }
+    }
     @Published var errorMessage: String?
+    @Published private(set) var isLoading = false
 
-    private let defaultsKey = "savedFoldersV1"
+    private let foldersDefaultsKey = "savedFoldersV1"
+    private let recentsDefaultsKey = "recentFilesV1"
+    private let userDefaults: UserDefaults
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+    private let folderPicker: @MainActor () -> URL?
+    private var loadTask: Task<Void, Never>?
 
-    init() {
+    init(
+        userDefaults: UserDefaults = .standard,
+        folderPicker: @escaping @MainActor () -> URL? = FolderStore.defaultFolderPicker
+    ) {
+        self.userDefaults = userDefaults
+        self.folderPicker = folderPicker
         loadFolders()
+        loadRecents()
         selectedFolderID = folders.first?.id
         refreshFiles()
+    }
+
+    deinit {
+        loadTask?.cancel()
     }
 
     var selectedFolder: FolderItem? {
@@ -25,32 +47,30 @@ final class FolderStore: ObservableObject {
     }
 
     func addFolder() {
-        let panel = NSOpenPanel()
-        panel.title = "Choose a folder"
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Add"
-
-        guard panel.runModal() == .OK, let folderURL = panel.url else {
+        guard let folderURL = folderPicker() else {
             return
         }
+        addFolder(url: folderURL)
+    }
 
-        if folders.contains(where: { $0.path == folderURL.path }) {
-            selectedFolderID = folders.first(where: { $0.path == folderURL.path })?.id
+    func addFolder(url: URL) {
+        let standardizedPath = url.standardizedFileURL.path
+
+        if folders.contains(where: { $0.path == standardizedPath }) {
+            selectedFolderID = folders.first(where: { $0.path == standardizedPath })?.id
             refreshFiles()
             return
         }
 
-        let bookmarkData = try? folderURL.bookmarkData(
+        let bookmarkData = try? url.bookmarkData(
             options: .withSecurityScope,
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         )
 
         let folder = FolderItem(
-            name: folderURL.lastPathComponent,
-            path: folderURL.path,
+            name: url.lastPathComponent,
+            path: standardizedPath,
             bookmarkData: bookmarkData
         )
 
@@ -61,17 +81,22 @@ final class FolderStore: ObservableObject {
     }
 
     func removeSelectedFolder() {
-        guard let selectedFolderID,
-              let idx = folders.firstIndex(where: { $0.id == selectedFolderID }) else {
+        guard let selectedFolderID else { return }
+        removeFolder(id: selectedFolderID)
+    }
+
+    func removeFolder(id: FolderItem.ID) {
+        guard let idx = folders.firstIndex(where: { $0.id == id }) else {
             return
         }
 
         folders.remove(at: idx)
         if folders.isEmpty {
-            self.selectedFolderID = nil
+            selectedFolderID = nil
+            allFileItems = []
             fileItems = []
         } else {
-            self.selectedFolderID = folders[max(0, idx - 1)].id
+            selectedFolderID = folders[max(0, idx - 1)].id
             refreshFiles()
         }
         persistFolders()
@@ -79,72 +104,49 @@ final class FolderStore: ObservableObject {
 
     func refreshFiles() {
         guard let folder = selectedFolder else {
+            loadTask?.cancel()
+            isLoading = false
+            allFileItems = []
             fileItems = []
+            errorMessage = nil
             return
         }
 
-        var folderURL = URL(fileURLWithPath: folder.path)
-        var accessStarted = false
+        let showHidden = showHiddenFiles
+        let sortAscending = sortByNameAscending
+        let query = searchQuery
 
-        if let bookmarkData = folder.bookmarkData {
-            var stale = false
-            if let securedURL = try? URL(
-                resolvingBookmarkData: bookmarkData,
-                options: [.withSecurityScope],
-                relativeTo: nil,
-                bookmarkDataIsStale: &stale
-            ) {
-                if stale,
-                   let newData = try? securedURL.bookmarkData(
-                    options: .withSecurityScope,
-                    includingResourceValuesForKeys: nil,
-                    relativeTo: nil
-                   ),
-                   let currentIndex = folders.firstIndex(where: { $0.id == folder.id }) {
-                    folders[currentIndex].bookmarkData = newData
-                    persistFolders()
-                }
-                folderURL = securedURL
-                accessStarted = securedURL.startAccessingSecurityScopedResource()
-            }
-        }
+        loadTask?.cancel()
+        isLoading = true
 
-        defer {
-            if accessStarted {
-                folderURL.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        do {
-            let urls = try FileManager.default.contentsOfDirectory(
-                at: folderURL,
-                includingPropertiesForKeys: [.isDirectoryKey, .nameKey, .isHiddenKey],
-                options: [.skipsPackageDescendants]
+        loadTask = Task { [weak self] in
+            let result = await FolderStore.scanFolder(
+                folder: folder,
+                showHiddenFiles: showHidden,
+                sortAscending: sortAscending,
+                query: query
             )
 
-            var nextItems = urls.compactMap { url -> FileItem? in
-                let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isHiddenKey])
-                let isHidden = values?.isHidden ?? false
-                if !showHiddenFiles && isHidden {
-                    return nil
-                }
-                return FileItem(url: url, isDirectory: values?.isDirectory ?? false)
-            }
+            guard let self else { return }
+            guard !Task.isCancelled else { return }
+            guard self.selectedFolderID == folder.id else { return }
 
-            nextItems.sort { lhs, rhs in
-                let l = lhs.url.lastPathComponent.localizedCaseInsensitiveCompare(rhs.url.lastPathComponent)
-                return sortByNameAscending ? (l == .orderedAscending) : (l == .orderedDescending)
+            switch result {
+            case .success(let items):
+                self.allFileItems = items
+                self.applyFilters()
+                self.errorMessage = nil
+            case .failure(let error):
+                self.allFileItems = []
+                self.fileItems = []
+                self.errorMessage = "Failed to load files: \(error.localizedDescription)"
             }
-
-            fileItems = nextItems
-            errorMessage = nil
-        } catch {
-            fileItems = []
-            errorMessage = "Failed to load files: \(error.localizedDescription)"
+            self.isLoading = false
         }
     }
 
     func openInFinder(_ fileItem: FileItem) {
+        markFileUsed(fileItem.url)
         NSWorkspace.shared.activateFileViewerSelecting([fileItem.url])
     }
 
@@ -155,7 +157,7 @@ final class FolderStore: ObservableObject {
 
     func toggleSortOrder() {
         sortByNameAscending.toggle()
-        refreshFiles()
+        applyFilters()
     }
 
     func toggleShowHidden() {
@@ -163,8 +165,30 @@ final class FolderStore: ObservableObject {
         refreshFiles()
     }
 
+    func markFileUsed(_ url: URL) {
+        recentFiles.removeAll(where: { $0.path == url.path })
+        recentFiles.insert(url, at: 0)
+        if recentFiles.count > 30 {
+            recentFiles = Array(recentFiles.prefix(30))
+        }
+        persistRecents()
+    }
+
+    func clearRecentFiles() {
+        recentFiles = []
+        persistRecents()
+    }
+
+    private func applyFilters() {
+        fileItems = FolderStore.sortAndFilter(
+            items: allFileItems,
+            query: searchQuery,
+            sortAscending: sortByNameAscending
+        )
+    }
+
     private func loadFolders() {
-        guard let data = UserDefaults.standard.data(forKey: defaultsKey),
+        guard let data = userDefaults.data(forKey: foldersDefaultsKey),
               let decoded = try? decoder.decode([FolderItem].self, from: data) else {
             folders = []
             return
@@ -174,6 +198,103 @@ final class FolderStore: ObservableObject {
 
     private func persistFolders() {
         guard let data = try? encoder.encode(folders) else { return }
-        UserDefaults.standard.set(data, forKey: defaultsKey)
+        userDefaults.set(data, forKey: foldersDefaultsKey)
+    }
+
+    private func loadRecents() {
+        guard let paths = userDefaults.array(forKey: recentsDefaultsKey) as? [String] else {
+            recentFiles = []
+            return
+        }
+        recentFiles = paths.map { URL(fileURLWithPath: $0) }
+    }
+
+    private func persistRecents() {
+        userDefaults.set(recentFiles.map(\.path), forKey: recentsDefaultsKey)
+    }
+
+    nonisolated static func sortAndFilter(items: [FileItem], query: String, sortAscending: Bool) -> [FileItem] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let filtered: [FileItem]
+        if trimmed.isEmpty {
+            filtered = items
+        } else {
+            filtered = items.filter { item in
+                item.url.lastPathComponent.localizedCaseInsensitiveContains(trimmed)
+            }
+        }
+
+        return filtered.sorted { lhs, rhs in
+            let compare = lhs.url.lastPathComponent.localizedCaseInsensitiveCompare(rhs.url.lastPathComponent)
+            return sortAscending ? (compare == .orderedAscending) : (compare == .orderedDescending)
+        }
+    }
+
+    @MainActor
+    private static func defaultFolderPicker() -> URL? {
+        let panel = NSOpenPanel()
+        panel.title = "Choose a folder"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Add"
+
+        guard panel.runModal() == .OK else {
+            return nil
+        }
+        return panel.url
+    }
+
+    nonisolated private static func scanFolder(
+        folder: FolderItem,
+        showHiddenFiles: Bool,
+        sortAscending: Bool,
+        query: String
+    ) async -> Result<[FileItem], Error> {
+        await Task.detached(priority: .userInitiated) {
+            var folderURL = URL(fileURLWithPath: folder.path)
+            var accessStarted = false
+
+            if let bookmarkData = folder.bookmarkData {
+                var stale = false
+                if let securedURL = try? URL(
+                    resolvingBookmarkData: bookmarkData,
+                    options: [.withSecurityScope],
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &stale
+                ) {
+                    folderURL = securedURL
+                    accessStarted = securedURL.startAccessingSecurityScopedResource()
+                }
+            }
+
+            defer {
+                if accessStarted {
+                    folderURL.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            do {
+                let urls = try FileManager.default.contentsOfDirectory(
+                    at: folderURL,
+                    includingPropertiesForKeys: [.isDirectoryKey, .isHiddenKey],
+                    options: [.skipsPackageDescendants]
+                )
+
+                let items = urls.compactMap { url -> FileItem? in
+                    let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isHiddenKey])
+                    let isHidden = values?.isHidden ?? false
+                    if !showHiddenFiles && isHidden {
+                        return nil
+                    }
+                    return FileItem(url: url, isDirectory: values?.isDirectory ?? false)
+                }
+
+                return .success(sortAndFilter(items: items, query: query, sortAscending: sortAscending))
+            } catch {
+                return .failure(error)
+            }
+        }.value
     }
 }
