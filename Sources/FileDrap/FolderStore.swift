@@ -179,6 +179,13 @@ final class FolderStore: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([fileItem.url])
     }
 
+    func openFile(_ fileItem: FileItem) {
+        guard !fileItem.isDirectory else { return }
+        if !NSWorkspace.shared.open(fileItem.url) {
+            errorMessage = "打开失败：\(fileItem.url.lastPathComponent)"
+        }
+    }
+
     var canGoToParentDirectory: Bool {
         guard let root = activeSecurityScopeURL ?? selectedFolder.map({ URL(fileURLWithPath: $0.path) }),
               let current = browsingDirectoryURL else {

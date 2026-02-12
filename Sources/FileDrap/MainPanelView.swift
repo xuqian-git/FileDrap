@@ -1,10 +1,13 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MainPanelView: View {
     @EnvironmentObject private var store: FolderStore
     @State private var renamingFileID: String?
     @State private var renamingText = ""
+    @State private var selectedFileID: String?
+    @State private var isPickingFolder = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,7 +30,7 @@ struct MainPanelView: View {
                 .frame(maxWidth: 220)
 
             Button {
-                store.addFolder()
+                isPickingFolder = true
             } label: {
                 Label("Add Folder", systemImage: "plus")
             }
@@ -40,16 +43,6 @@ struct MainPanelView: View {
             }
             .buttonStyle(.bordered)
             .disabled(store.selectedFolder == nil)
-
-            Button {
-                renamingFileID = nil
-                renamingText = ""
-                store.goToParentDirectory()
-            } label: {
-                Label("上一级", systemImage: "arrow.up.left")
-            }
-            .buttonStyle(.bordered)
-            .disabled(!store.canGoToParentDirectory)
 
             Button {
                 store.toggleShowHidden()
@@ -73,6 +66,15 @@ struct MainPanelView: View {
             .buttonStyle(.bordered)
         }
         .padding(12)
+        .fileImporter(
+            isPresented: $isPickingFolder,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                store.addFolder(url: url)
+            }
+        }
     }
 
     private var content: some View {
@@ -104,6 +106,7 @@ struct MainPanelView: View {
             .onChange(of: store.selectedFolderID) { _ in
                 renamingFileID = nil
                 renamingText = ""
+                selectedFileID = nil
                 store.refreshFiles()
             }
 
@@ -158,13 +161,22 @@ struct MainPanelView: View {
                         ForEach(store.fileItems) { file in
                             FileRow(
                                 file: file,
+                                isSelected: selectedFileID == file.id,
                                 isRenaming: renamingFileID == file.id,
                                 renameText: $renamingText,
-                                onOpenInFinder: {
-                                    store.openInFinder(file)
+                                onPrimaryAction: {
+                                    if file.isDirectory {
+                                        renamingFileID = nil
+                                        renamingText = ""
+                                        selectedFileID = nil
+                                        store.enterDirectory(file)
+                                    } else {
+                                        store.openFile(file)
+                                    }
                                 },
                                 onStartRename: {
                                     renamingFileID = file.id
+                                    selectedFileID = file.id
                                     renamingText = file.url.lastPathComponent
                                 },
                                 onCommitRename: {
@@ -182,18 +194,43 @@ struct MainPanelView: View {
                                         renamingFileID = nil
                                         renamingText = ""
                                     }
-                                store.moveItemToTrash(file)
+                                    if selectedFileID == file.id {
+                                        selectedFileID = nil
+                                    }
+                                    store.moveItemToTrash(file)
                                 },
                                 onEnterDirectory: {
                                     renamingFileID = nil
                                     renamingText = ""
+                                    selectedFileID = nil
                                     store.enterDirectory(file)
+                                },
+                                onShowInFinder: {
+                                    store.openInFinder(file)
+                                },
+                                onSelect: {
+                                    selectedFileID = file.id
                                 }
                             )
                         }
                     } header: {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(store.searchQuery.isEmpty ? "Current Folder" : "Search Results")
+                            HStack {
+                                Text(store.searchQuery.isEmpty ? "Current Folder" : "Search Results")
+                                if store.searchQuery.isEmpty {
+                                    Spacer()
+                                    Button {
+                                        renamingFileID = nil
+                                        renamingText = ""
+                                        selectedFileID = nil
+                                        store.goToParentDirectory()
+                                    } label: {
+                                        Label("上一级", systemImage: "arrow.up.left")
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .disabled(!store.canGoToParentDirectory)
+                                }
+                            }
                             if store.searchQuery.isEmpty {
                                 Text(store.currentDirectoryPath)
                                     .font(.caption2)
@@ -227,14 +264,17 @@ struct MainPanelView: View {
 
 private struct FileRow: View {
     let file: FileItem
+    let isSelected: Bool
     let isRenaming: Bool
     @Binding var renameText: String
-    let onOpenInFinder: () -> Void
+    let onPrimaryAction: () -> Void
     let onStartRename: () -> Void
     let onCommitRename: () -> Void
     let onCancelRename: () -> Void
     let onMoveToTrash: () -> Void
     let onEnterDirectory: () -> Void
+    let onShowInFinder: () -> Void
+    let onSelect: () -> Void
 
     var body: some View {
         QuickFileRow(
@@ -242,12 +282,14 @@ private struct FileRow: View {
             isDirectory: file.isDirectory,
             isRenaming: isRenaming,
             renameText: $renameText,
-            onOpenInFinder: onOpenInFinder,
+            onPrimaryAction: onPrimaryAction,
             onRename: onStartRename,
             onCommitRename: onCommitRename,
             onCancelRename: onCancelRename,
             onMoveToTrash: onMoveToTrash,
-            onEnterDirectory: onEnterDirectory
+            onEnterDirectory: onEnterDirectory,
+            onShowInFinder: onShowInFinder,
+            onSelect: onSelect
         ) {
             if file.isDirectory {
                 Text("DIR")
@@ -255,6 +297,11 @@ private struct FileRow: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
+                .padding(.vertical, 1)
+        )
     }
 }
 
@@ -263,12 +310,14 @@ private struct QuickFileRow<Trailing: View>: View {
     let isDirectory: Bool
     let isRenaming: Bool
     @Binding var renameText: String
-    let onOpenInFinder: () -> Void
+    let onPrimaryAction: () -> Void
     let onRename: (() -> Void)?
     let onCommitRename: (() -> Void)?
     let onCancelRename: (() -> Void)?
     let onMoveToTrash: (() -> Void)?
     let onEnterDirectory: (() -> Void)?
+    let onShowInFinder: (() -> Void)?
+    let onSelect: (() -> Void)?
     @ViewBuilder var trailing: Trailing
     @FocusState private var renameFieldFocused: Bool
 
@@ -277,24 +326,28 @@ private struct QuickFileRow<Trailing: View>: View {
         isDirectory: Bool = false,
         isRenaming: Bool = false,
         renameText: Binding<String> = .constant(""),
-        onOpenInFinder: @escaping () -> Void,
+        onPrimaryAction: @escaping () -> Void,
         onRename: (() -> Void)? = nil,
         onCommitRename: (() -> Void)? = nil,
         onCancelRename: (() -> Void)? = nil,
         onMoveToTrash: (() -> Void)? = nil,
         onEnterDirectory: (() -> Void)? = nil,
+        onShowInFinder: (() -> Void)? = nil,
+        onSelect: (() -> Void)? = nil,
         @ViewBuilder trailing: () -> Trailing = { EmptyView() }
     ) {
         self.url = url
         self.isDirectory = isDirectory
         self.isRenaming = isRenaming
         self._renameText = renameText
-        self.onOpenInFinder = onOpenInFinder
+        self.onPrimaryAction = onPrimaryAction
         self.onRename = onRename
         self.onCommitRename = onCommitRename
         self.onCancelRename = onCancelRename
         self.onMoveToTrash = onMoveToTrash
         self.onEnterDirectory = onEnterDirectory
+        self.onShowInFinder = onShowInFinder
+        self.onSelect = onSelect
         self.trailing = trailing()
     }
 
@@ -351,13 +404,17 @@ private struct QuickFileRow<Trailing: View>: View {
             if onRename != nil || onMoveToTrash != nil {
                 Divider()
             }
-            Button("在 Finder 中显示", action: onOpenInFinder)
+            if let onShowInFinder {
+                Button("在 Finder 中显示", action: onShowInFinder)
+            }
         }
-        .onTapGesture(count: 2) {
-            if !isRenaming, isDirectory {
-                onEnterDirectory?()
-            } else if !isRenaming {
-                onOpenInFinder()
+        .overlay {
+            if !isRenaming {
+                MouseDownCaptureView(
+                    onMouseDown: { onSelect?() },
+                    onDoubleClick: { onPrimaryAction() }
+                )
+                .allowsHitTesting(true)
             }
         }
         .onDrag {
@@ -378,5 +435,37 @@ private struct QuickFileRow<Trailing: View>: View {
         }
         let stem = url.deletingPathExtension().lastPathComponent
         return stem.isEmpty ? url.lastPathComponent : stem
+    }
+}
+
+private struct MouseDownCaptureView: NSViewRepresentable {
+    let onMouseDown: () -> Void
+    let onDoubleClick: () -> Void
+
+    func makeNSView(context: Context) -> CaptureView {
+        let view = CaptureView()
+        view.onMouseDown = onMouseDown
+        view.onDoubleClick = onDoubleClick
+        return view
+    }
+
+    func updateNSView(_ nsView: CaptureView, context: Context) {
+        nsView.onMouseDown = onMouseDown
+        nsView.onDoubleClick = onDoubleClick
+    }
+
+    final class CaptureView: NSView {
+        var onMouseDown: (() -> Void)?
+        var onDoubleClick: (() -> Void)?
+
+        override var acceptsFirstResponder: Bool { true }
+
+        override func mouseDown(with event: NSEvent) {
+            onMouseDown?()
+            if event.clickCount == 2 {
+                onDoubleClick?()
+            }
+            super.mouseDown(with: event)
+        }
     }
 }
