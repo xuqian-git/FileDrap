@@ -1,13 +1,12 @@
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct MainPanelView: View {
     @EnvironmentObject private var store: FolderStore
     @State private var renamingFileID: String?
     @State private var renamingText = ""
     @State private var selectedFileID: String?
-    @State private var isPickingFolder = false
+    @State private var isPresentingAddFolderPanel = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,11 +29,12 @@ struct MainPanelView: View {
                 .frame(maxWidth: 220)
 
             Button {
-                isPickingFolder = true
+                presentAddFolderPanel()
             } label: {
                 Label("Add Folder", systemImage: "plus")
             }
             .buttonStyle(.borderedProminent)
+            .disabled(isPresentingAddFolderPanel)
 
             Button {
                 store.revealCurrentFolderInFinder()
@@ -66,15 +66,6 @@ struct MainPanelView: View {
             .buttonStyle(.bordered)
         }
         .padding(12)
-        .fileImporter(
-            isPresented: $isPickingFolder,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                store.addFolder(url: url)
-            }
-        }
     }
 
     private var content: some View {
@@ -100,6 +91,15 @@ struct MainPanelView: View {
                             .lineLimit(1)
                     }
                     .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard store.selectedFolderID != folder.id else { return }
+                        renamingFileID = nil
+                        renamingText = ""
+                        selectedFileID = nil
+                        store.selectedFolderID = folder.id
+                        store.refreshFiles()
+                    }
                     .tag(folder.id)
                 }
             }
@@ -259,6 +259,24 @@ struct MainPanelView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(32)
+    }
+
+    private func presentAddFolderPanel() {
+        guard !isPresentingAddFolderPanel else { return }
+        isPresentingAddFolderPanel = true
+        NSApp.activate(ignoringOtherApps: true)
+
+        let panel = NSOpenPanel()
+        panel.title = "选择文件夹"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "添加"
+        panel.begin { response in
+            defer { isPresentingAddFolderPanel = false }
+            guard response == .OK, let url = panel.url else { return }
+            store.addFolder(url: url)
+        }
     }
 }
 
