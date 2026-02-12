@@ -42,6 +42,16 @@ struct MainPanelView: View {
             .disabled(store.selectedFolder == nil)
 
             Button {
+                renamingFileID = nil
+                renamingText = ""
+                store.goToParentDirectory()
+            } label: {
+                Label("上一级", systemImage: "arrow.up.left")
+            }
+            .buttonStyle(.bordered)
+            .disabled(!store.canGoToParentDirectory)
+
+            Button {
                 store.toggleShowHidden()
             } label: {
                 Image(systemName: store.showHiddenFiles ? "eye.fill" : "eye")
@@ -144,27 +154,7 @@ struct MainPanelView: View {
                 )
             } else {
                 List {
-                    if store.searchQuery.isEmpty && !store.recentFiles.isEmpty {
-                        Section {
-                            ForEach(store.recentFiles, id: \.path) { url in
-                                QuickFileRow(url: url) {
-                                    store.markFileUsed(url)
-                                    store.openInFinder(FileItem(url: url, isDirectory: false))
-                                }
-                            }
-                        } header: {
-                            HStack {
-                                Text("Recent")
-                                Spacer()
-                                Button("Clear") {
-                                    store.clearRecentFiles()
-                                }
-                                .buttonStyle(.link)
-                            }
-                        }
-                    }
-
-                    Section(store.searchQuery.isEmpty ? "Current Folder" : "Search Results") {
+                    Section {
                         ForEach(store.fileItems) { file in
                             FileRow(
                                 file: file,
@@ -193,8 +183,22 @@ struct MainPanelView: View {
                                         renamingText = ""
                                     }
                                 store.moveItemToTrash(file)
+                                },
+                                onEnterDirectory: {
+                                    renamingFileID = nil
+                                    renamingText = ""
+                                    store.enterDirectory(file)
                                 }
                             )
+                        }
+                    } header: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(store.searchQuery.isEmpty ? "Current Folder" : "Search Results")
+                            if store.searchQuery.isEmpty {
+                                Text(store.currentDirectoryPath)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -230,17 +234,20 @@ private struct FileRow: View {
     let onCommitRename: () -> Void
     let onCancelRename: () -> Void
     let onMoveToTrash: () -> Void
+    let onEnterDirectory: () -> Void
 
     var body: some View {
         QuickFileRow(
             url: file.url,
+            isDirectory: file.isDirectory,
             isRenaming: isRenaming,
             renameText: $renameText,
             onOpenInFinder: onOpenInFinder,
             onRename: onStartRename,
             onCommitRename: onCommitRename,
             onCancelRename: onCancelRename,
-            onMoveToTrash: onMoveToTrash
+            onMoveToTrash: onMoveToTrash,
+            onEnterDirectory: onEnterDirectory
         ) {
             if file.isDirectory {
                 Text("DIR")
@@ -253,6 +260,7 @@ private struct FileRow: View {
 
 private struct QuickFileRow<Trailing: View>: View {
     let url: URL
+    let isDirectory: Bool
     let isRenaming: Bool
     @Binding var renameText: String
     let onOpenInFinder: () -> Void
@@ -260,11 +268,13 @@ private struct QuickFileRow<Trailing: View>: View {
     let onCommitRename: (() -> Void)?
     let onCancelRename: (() -> Void)?
     let onMoveToTrash: (() -> Void)?
+    let onEnterDirectory: (() -> Void)?
     @ViewBuilder var trailing: Trailing
     @FocusState private var renameFieldFocused: Bool
 
     init(
         url: URL,
+        isDirectory: Bool = false,
         isRenaming: Bool = false,
         renameText: Binding<String> = .constant(""),
         onOpenInFinder: @escaping () -> Void,
@@ -272,9 +282,11 @@ private struct QuickFileRow<Trailing: View>: View {
         onCommitRename: (() -> Void)? = nil,
         onCancelRename: (() -> Void)? = nil,
         onMoveToTrash: (() -> Void)? = nil,
+        onEnterDirectory: (() -> Void)? = nil,
         @ViewBuilder trailing: () -> Trailing = { EmptyView() }
     ) {
         self.url = url
+        self.isDirectory = isDirectory
         self.isRenaming = isRenaming
         self._renameText = renameText
         self.onOpenInFinder = onOpenInFinder
@@ -282,6 +294,7 @@ private struct QuickFileRow<Trailing: View>: View {
         self.onCommitRename = onCommitRename
         self.onCancelRename = onCancelRename
         self.onMoveToTrash = onMoveToTrash
+        self.onEnterDirectory = onEnterDirectory
         self.trailing = trailing()
     }
 
@@ -323,6 +336,12 @@ private struct QuickFileRow<Trailing: View>: View {
         }
         .contentShape(Rectangle())
         .contextMenu {
+            if isDirectory, let onEnterDirectory {
+                Button("进入文件夹", action: onEnterDirectory)
+            }
+            if isDirectory, (onRename != nil || onMoveToTrash != nil) {
+                Divider()
+            }
             if let onRename {
                 Button("重命名", action: onRename)
             }
@@ -335,7 +354,9 @@ private struct QuickFileRow<Trailing: View>: View {
             Button("在 Finder 中显示", action: onOpenInFinder)
         }
         .onTapGesture(count: 2) {
-            if !isRenaming {
+            if !isRenaming, isDirectory {
+                onEnterDirectory?()
+            } else if !isRenaming {
                 onOpenInFinder()
             }
         }

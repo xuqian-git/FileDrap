@@ -9,7 +9,7 @@ final class FolderStore: ObservableObject {
     @Published var selectedFolderID: FolderItem.ID?
     @Published private(set) var allFileItems: [FileItem] = []
     @Published private(set) var fileItems: [FileItem] = []
-    @Published private(set) var recentFiles: [URL] = []
+    @Published private(set) var currentDirectoryPath = ""
     @Published var showHiddenFiles = false
     @Published var sortByNameAscending = true
     @Published var searchQuery = "" {
@@ -19,7 +19,6 @@ final class FolderStore: ObservableObject {
     @Published private(set) var isLoading = false
 
     private let foldersDefaultsKey = "savedFoldersV1"
-    private let recentsDefaultsKey = "recentFilesV1"
     private let userDefaults: UserDefaults
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -27,6 +26,8 @@ final class FolderStore: ObservableObject {
     private var loadTask: Task<Void, Never>?
     private var activeSecurityScopeURL: URL?
     private var activeSecurityScopeFolderID: FolderItem.ID?
+    private var browsingFolderID: FolderItem.ID?
+    private var browsingDirectoryURL: URL?
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -35,7 +36,6 @@ final class FolderStore: ObservableObject {
         self.userDefaults = userDefaults
         self.folderPicker = folderPicker
         loadFolders()
-        loadRecents()
         selectedFolderID = folders.first?.id
         refreshFiles()
     }
@@ -95,12 +95,18 @@ final class FolderStore: ObservableObject {
         if activeSecurityScopeFolderID == id {
             stopActiveFolderAccess()
         }
+        if browsingFolderID == id {
+            browsingFolderID = nil
+            browsingDirectoryURL = nil
+            currentDirectoryPath = ""
+        }
 
         folders.remove(at: idx)
         if folders.isEmpty {
             selectedFolderID = nil
             allFileItems = []
             fileItems = []
+            currentDirectoryPath = ""
             stopActiveFolderAccess()
         } else {
             selectedFolderID = folders[max(0, idx - 1)].id
@@ -115,12 +121,27 @@ final class FolderStore: ObservableObject {
             isLoading = false
             allFileItems = []
             fileItems = []
+            currentDirectoryPath = ""
             errorMessage = nil
             stopActiveFolderAccess()
             return
         }
 
-        let folderURL = prepareFolderAccess(for: folder)
+        let rootURL = prepareFolderAccess(for: folder)
+        if browsingFolderID != folder.id {
+            browsingFolderID = folder.id
+            browsingDirectoryURL = rootURL
+        }
+
+        guard let browsingURL = normalizeBrowsingDirectory(rootURL: rootURL) else {
+            browsingDirectoryURL = rootURL
+            currentDirectoryPath = rootURL.path
+            errorMessage = "当前目录不可访问，已回到根目录"
+            refreshFiles()
+            return
+        }
+
+        currentDirectoryPath = browsingURL.path
         let showHidden = showHiddenFiles
         let sortAscending = sortByNameAscending
         let query = searchQuery
@@ -130,7 +151,7 @@ final class FolderStore: ObservableObject {
 
         loadTask = Task { [weak self] in
             let result = await FolderStore.scanFolder(
-                folderURL: folderURL,
+                folderURL: browsingURL,
                 showHiddenFiles: showHidden,
                 sortAscending: sortAscending,
                 query: query
@@ -155,15 +176,32 @@ final class FolderStore: ObservableObject {
     }
 
     func openInFinder(_ fileItem: FileItem) {
-        markFileUsed(fileItem.url)
         NSWorkspace.shared.activateFileViewerSelecting([fileItem.url])
+    }
+
+    var canGoToParentDirectory: Bool {
+        guard let root = activeSecurityScopeURL ?? selectedFolder.map({ URL(fileURLWithPath: $0.path) }),
+              let current = browsingDirectoryURL else {
+            return false
+        }
+        return current.standardizedFileURL.path != root.standardizedFileURL.path
+    }
+
+    func enterDirectory(_ fileItem: FileItem) {
+        guard fileItem.isDirectory else { return }
+        browsingDirectoryURL = fileItem.url
+        refreshFiles()
+    }
+
+    func goToParentDirectory() {
+        guard canGoToParentDirectory, let current = browsingDirectoryURL else { return }
+        browsingDirectoryURL = current.deletingLastPathComponent()
+        refreshFiles()
     }
 
     func moveItemToTrash(_ fileItem: FileItem) {
         do {
             try FileManager.default.trashItem(at: fileItem.url, resultingItemURL: nil)
-            recentFiles.removeAll(where: { $0.path == fileItem.url.path })
-            persistRecents()
             refreshFiles()
             errorMessage = nil
         } catch {
@@ -192,8 +230,6 @@ final class FolderStore: ObservableObject {
 
         do {
             try FileManager.default.moveItem(at: fileItem.url, to: nextURL)
-            recentFiles = recentFiles.map { $0.path == fileItem.url.path ? nextURL : $0 }
-            persistRecents()
             refreshFiles()
             errorMessage = nil
             return true
@@ -204,8 +240,9 @@ final class FolderStore: ObservableObject {
     }
 
     func revealCurrentFolderInFinder() {
-        guard let folder = selectedFolder else { return }
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
+        let path = browsingDirectoryURL?.path ?? selectedFolder?.path
+        guard let path else { return }
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
     }
 
     func toggleSortOrder() {
@@ -216,20 +253,6 @@ final class FolderStore: ObservableObject {
     func toggleShowHidden() {
         showHiddenFiles.toggle()
         refreshFiles()
-    }
-
-    func markFileUsed(_ url: URL) {
-        recentFiles.removeAll(where: { $0.path == url.path })
-        recentFiles.insert(url, at: 0)
-        if recentFiles.count > 30 {
-            recentFiles = Array(recentFiles.prefix(30))
-        }
-        persistRecents()
-    }
-
-    func clearRecentFiles() {
-        recentFiles = []
-        persistRecents()
     }
 
     private func applyFilters() {
@@ -252,18 +275,6 @@ final class FolderStore: ObservableObject {
     private func persistFolders() {
         guard let data = try? encoder.encode(folders) else { return }
         userDefaults.set(data, forKey: foldersDefaultsKey)
-    }
-
-    private func loadRecents() {
-        guard let paths = userDefaults.array(forKey: recentsDefaultsKey) as? [String] else {
-            recentFiles = []
-            return
-        }
-        recentFiles = paths.map { URL(fileURLWithPath: $0) }
-    }
-
-    private func persistRecents() {
-        userDefaults.set(recentFiles.map(\.path), forKey: recentsDefaultsKey)
     }
 
     nonisolated static func sortAndFilter(items: [FileItem], query: String, sortAscending: Bool) -> [FileItem] {
@@ -376,6 +387,21 @@ final class FolderStore: ObservableObject {
         activeSecurityScopeURL.stopAccessingSecurityScopedResource()
         self.activeSecurityScopeURL = nil
         activeSecurityScopeFolderID = nil
+    }
+
+    private func normalizeBrowsingDirectory(rootURL: URL) -> URL? {
+        let rootPath = rootURL.standardizedFileURL.path
+        guard let candidate = browsingDirectoryURL else {
+            browsingDirectoryURL = rootURL
+            return rootURL
+        }
+
+        let candidatePath = candidate.standardizedFileURL.path
+        guard candidatePath.hasPrefix(rootPath),
+              FileManager.default.fileExists(atPath: candidatePath) else {
+            return nil
+        }
+        return candidate
     }
 
 }

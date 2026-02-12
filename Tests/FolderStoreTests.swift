@@ -44,7 +44,7 @@ final class FolderStoreTests: XCTestCase {
         XCTAssertEqual(filtered.map { $0.url.lastPathComponent }, ["Gamma.txt"])
     }
 
-    func testRecentFilesDeduplicatesAndKeepsOrder() {
+    func testDirectoryNavigationState() throws {
         let suiteName = "FileDrapTests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
             XCTFail("Failed to create isolated defaults")
@@ -53,17 +53,22 @@ final class FolderStoreTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let child = root.appendingPathComponent("child", isDirectory: true)
+        try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+
         let store = FolderStore(userDefaults: defaults, folderPicker: { nil })
-        let first = URL(fileURLWithPath: "/tmp/a.txt")
-        let second = URL(fileURLWithPath: "/tmp/b.txt")
+        store.addFolder(url: root)
 
-        store.markFileUsed(first)
-        store.markFileUsed(second)
-        store.markFileUsed(first)
+        XCTAssertEqual(store.currentDirectoryPath, root.path)
+        XCTAssertFalse(store.canGoToParentDirectory)
 
-        XCTAssertEqual(store.recentFiles.map(\.path), [first.path, second.path])
+        store.enterDirectory(FileItem(url: child, isDirectory: true))
+        XCTAssertEqual(store.currentDirectoryPath, child.path)
+        XCTAssertTrue(store.canGoToParentDirectory)
 
-        let reloaded = FolderStore(userDefaults: defaults, folderPicker: { nil })
-        XCTAssertEqual(reloaded.recentFiles.map(\.path), [first.path, second.path])
+        store.goToParentDirectory()
+        XCTAssertEqual(store.currentDirectoryPath, root.path)
+        XCTAssertFalse(store.canGoToParentDirectory)
     }
 }
