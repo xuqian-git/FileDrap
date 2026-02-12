@@ -25,6 +25,8 @@ final class FolderStore: ObservableObject {
     private let decoder = JSONDecoder()
     private let folderPicker: @MainActor () -> URL?
     private var loadTask: Task<Void, Never>?
+    private var activeSecurityScopeURL: URL?
+    private var activeSecurityScopeFolderID: FolderItem.ID?
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -90,11 +92,16 @@ final class FolderStore: ObservableObject {
             return
         }
 
+        if activeSecurityScopeFolderID == id {
+            stopActiveFolderAccess()
+        }
+
         folders.remove(at: idx)
         if folders.isEmpty {
             selectedFolderID = nil
             allFileItems = []
             fileItems = []
+            stopActiveFolderAccess()
         } else {
             selectedFolderID = folders[max(0, idx - 1)].id
             refreshFiles()
@@ -109,9 +116,11 @@ final class FolderStore: ObservableObject {
             allFileItems = []
             fileItems = []
             errorMessage = nil
+            stopActiveFolderAccess()
             return
         }
 
+        let folderURL = prepareFolderAccess(for: folder)
         let showHidden = showHiddenFiles
         let sortAscending = sortByNameAscending
         let query = searchQuery
@@ -121,7 +130,7 @@ final class FolderStore: ObservableObject {
 
         loadTask = Task { [weak self] in
             let result = await FolderStore.scanFolder(
-                folder: folder,
+                folderURL: folderURL,
                 showHiddenFiles: showHidden,
                 sortAscending: sortAscending,
                 query: query
@@ -247,34 +256,12 @@ final class FolderStore: ObservableObject {
     }
 
     nonisolated private static func scanFolder(
-        folder: FolderItem,
+        folderURL: URL,
         showHiddenFiles: Bool,
         sortAscending: Bool,
         query: String
     ) async -> Result<[FileItem], Error> {
         await Task.detached(priority: .userInitiated) {
-            var folderURL = URL(fileURLWithPath: folder.path)
-            var accessStarted = false
-
-            if let bookmarkData = folder.bookmarkData {
-                var stale = false
-                if let securedURL = try? URL(
-                    resolvingBookmarkData: bookmarkData,
-                    options: [.withSecurityScope],
-                    relativeTo: nil,
-                    bookmarkDataIsStale: &stale
-                ) {
-                    folderURL = securedURL
-                    accessStarted = securedURL.startAccessingSecurityScopedResource()
-                }
-            }
-
-            defer {
-                if accessStarted {
-                    folderURL.stopAccessingSecurityScopedResource()
-                }
-            }
-
             do {
                 let urls = try FileManager.default.contentsOfDirectory(
                     at: folderURL,
@@ -296,5 +283,54 @@ final class FolderStore: ObservableObject {
                 return .failure(error)
             }
         }.value
+    }
+
+    private func prepareFolderAccess(for folder: FolderItem) -> URL {
+        if activeSecurityScopeFolderID == folder.id, let activeSecurityScopeURL {
+            return activeSecurityScopeURL
+        }
+
+        stopActiveFolderAccess()
+        let rawURL = URL(fileURLWithPath: folder.path)
+
+        guard let bookmarkData = folder.bookmarkData else {
+            return rawURL
+        }
+
+        var stale = false
+        guard let securedURL = try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: [.withSecurityScope],
+            relativeTo: nil,
+            bookmarkDataIsStale: &stale
+        ) else {
+            return rawURL
+        }
+
+        if stale,
+           let newData = try? securedURL.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+           ),
+           let index = folders.firstIndex(where: { $0.id == folder.id }) {
+            folders[index].bookmarkData = newData
+            persistFolders()
+        }
+
+        if securedURL.startAccessingSecurityScopedResource() {
+            activeSecurityScopeURL = securedURL
+            activeSecurityScopeFolderID = folder.id
+            return securedURL
+        }
+
+        return rawURL
+    }
+
+    private func stopActiveFolderAccess() {
+        guard let activeSecurityScopeURL else { return }
+        activeSecurityScopeURL.stopAccessingSecurityScopedResource()
+        self.activeSecurityScopeURL = nil
+        activeSecurityScopeFolderID = nil
     }
 }

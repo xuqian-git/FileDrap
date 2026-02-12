@@ -239,7 +239,22 @@ private struct QuickFileRow<Trailing: View>: View {
         }
         .onTapGesture(count: 2, perform: onOpenInFinder)
         .onDrag {
-            NSItemProvider(object: url as NSURL)
+            let suggestedName = dragSuggestedName(for: url)
+            if let provider = NSItemProvider(contentsOf: url) {
+                provider.suggestedName = suggestedName
+                return provider
+            }
+            let fallback = NSItemProvider(object: url as NSURL)
+            fallback.suggestedName = suggestedName
+            return fallback
         }
+    }
+
+    private func dragSuggestedName(for url: URL) -> String {
+        if url.hasDirectoryPath {
+            return url.lastPathComponent
+        }
+        let stem = url.deletingPathExtension().lastPathComponent
+        return stem.isEmpty ? url.lastPathComponent : stem
     }
 }
