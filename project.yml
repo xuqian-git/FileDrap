@@ -1,0 +1,25 @@
+name: FileDrap
+options:
+  minimumXcodeGenVersion: 2.43.0
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.qian.filedrap
+    MACOSX_DEPLOYMENT_TARGET: 13.0
+    SWIFT_VERSION: 6.0
+    DEVELOPMENT_TEAM: ""
+targets:
+  FileDrap:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Sources
+    settings:
+      base:
+        PRODUCT_NAME: FileDrap
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+    scheme:
+      testTargets: []
