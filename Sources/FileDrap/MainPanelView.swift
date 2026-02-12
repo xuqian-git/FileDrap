@@ -164,6 +164,10 @@ struct MainPanelView: View {
                         ForEach(store.fileItems) { file in
                             FileRow(file: file, onOpenInFinder: {
                                 store.openInFinder(file)
+                            }, onRename: {
+                                store.renameItem(file)
+                            }, onMoveToTrash: {
+                                store.moveItemToTrash(file)
                             })
                         }
                     }
@@ -194,9 +198,16 @@ struct MainPanelView: View {
 private struct FileRow: View {
     let file: FileItem
     let onOpenInFinder: () -> Void
+    let onRename: () -> Void
+    let onMoveToTrash: () -> Void
 
     var body: some View {
-        QuickFileRow(url: file.url, onOpenInFinder: onOpenInFinder) {
+        QuickFileRow(
+            url: file.url,
+            onOpenInFinder: onOpenInFinder,
+            onRename: onRename,
+            onMoveToTrash: onMoveToTrash
+        ) {
             if file.isDirectory {
                 Text("DIR")
                     .font(.caption2)
@@ -209,15 +220,21 @@ private struct FileRow: View {
 private struct QuickFileRow<Trailing: View>: View {
     let url: URL
     let onOpenInFinder: () -> Void
+    let onRename: (() -> Void)?
+    let onMoveToTrash: (() -> Void)?
     @ViewBuilder var trailing: Trailing
 
     init(
         url: URL,
         onOpenInFinder: @escaping () -> Void,
+        onRename: (() -> Void)? = nil,
+        onMoveToTrash: (() -> Void)? = nil,
         @ViewBuilder trailing: () -> Trailing = { EmptyView() }
     ) {
         self.url = url
         self.onOpenInFinder = onOpenInFinder
+        self.onRename = onRename
+        self.onMoveToTrash = onMoveToTrash
         self.trailing = trailing()
     }
 
@@ -242,7 +259,16 @@ private struct QuickFileRow<Trailing: View>: View {
         }
         .contentShape(Rectangle())
         .contextMenu {
-            Button("Show in Finder", action: onOpenInFinder)
+            if let onRename {
+                Button("重命名", action: onRename)
+            }
+            if let onMoveToTrash {
+                Button("移到废纸篓", role: .destructive, action: onMoveToTrash)
+            }
+            if onRename != nil || onMoveToTrash != nil {
+                Divider()
+            }
+            Button("在 Finder 中显示", action: onOpenInFinder)
         }
         .onTapGesture(count: 2, perform: onOpenInFinder)
         .onDrag {

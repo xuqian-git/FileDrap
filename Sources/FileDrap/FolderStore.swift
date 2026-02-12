@@ -159,6 +159,51 @@ final class FolderStore: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([fileItem.url])
     }
 
+    func moveItemToTrash(_ fileItem: FileItem) {
+        do {
+            try FileManager.default.trashItem(at: fileItem.url, resultingItemURL: nil)
+            recentFiles.removeAll(where: { $0.path == fileItem.url.path })
+            persistRecents()
+            refreshFiles()
+            errorMessage = nil
+        } catch {
+            errorMessage = "移到废纸篓失败：\(error.localizedDescription)"
+        }
+    }
+
+    func renameItem(_ fileItem: FileItem) {
+        guard let nextName = promptRenameName(for: fileItem.url.lastPathComponent) else {
+            return
+        }
+
+        let trimmed = nextName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            errorMessage = "名称不能为空"
+            return
+        }
+        guard trimmed != fileItem.url.lastPathComponent else {
+            return
+        }
+
+        let parentURL = fileItem.url.deletingLastPathComponent()
+        let nextURL = parentURL.appendingPathComponent(trimmed, isDirectory: fileItem.isDirectory)
+
+        if FileManager.default.fileExists(atPath: nextURL.path) {
+            errorMessage = "重命名失败：目标名称已存在"
+            return
+        }
+
+        do {
+            try FileManager.default.moveItem(at: fileItem.url, to: nextURL)
+            recentFiles = recentFiles.map { $0.path == fileItem.url.path ? nextURL : $0 }
+            persistRecents()
+            refreshFiles()
+            errorMessage = nil
+        } catch {
+            errorMessage = "重命名失败：\(error.localizedDescription)"
+        }
+    }
+
     func revealCurrentFolderInFinder() {
         guard let folder = selectedFolder else { return }
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
@@ -332,5 +377,24 @@ final class FolderStore: ObservableObject {
         activeSecurityScopeURL.stopAccessingSecurityScopedResource()
         self.activeSecurityScopeURL = nil
         activeSecurityScopeFolderID = nil
+    }
+
+    private func promptRenameName(for currentName: String) -> String? {
+        let alert = NSAlert()
+        alert.messageText = "重命名"
+        alert.informativeText = "请输入新的名称"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "确定")
+        alert.addButton(withTitle: "取消")
+
+        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        textField.stringValue = currentName
+        alert.accessoryView = textField
+
+        let result = alert.runModal()
+        guard result == .alertFirstButtonReturn else {
+            return nil
+        }
+        return textField.stringValue
     }
 }
