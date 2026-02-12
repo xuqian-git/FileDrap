@@ -6,6 +6,7 @@ SCHEME_NAME="FileDrap"
 PROJECT_NAME="FileDrap"
 APP_PRODUCT_NAME="FileDrap"
 DIST_NAME="文件拖拖"
+ENTITLEMENTS="$ROOT/Sources/FileDrap/FileDrap.entitlements"
 BUILD_ROOT="$ROOT/build/local"
 DERIVED="$BUILD_ROOT/DerivedData"
 DIST="$ROOT/dist"
@@ -14,22 +15,64 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 
 cd "$ROOT"
 
-xcodegen generate >/dev/null
+# Keep Xcode UI signing settings stable by default.
+# Set REGENERATE_PROJECT=1 only when you intentionally want to regenerate .xcodeproj from project.yml.
+if [[ "${REGENERATE_PROJECT:-0}" == "1" ]]; then
+  xcodegen generate >/dev/null
+fi
 
-xcodebuild \
-  -project "$PROJECT_NAME.xcodeproj" \
-  -scheme "$SCHEME_NAME" \
-  -configuration Release \
-  -sdk macosx \
-  -derivedDataPath "$DERIVED" \
-  CODE_SIGNING_ALLOWED=NO \
-  CODE_SIGNING_REQUIRED=NO \
-  build >/dev/null
+COMMON_BUILD_ARGS=(
+  -project "$PROJECT_NAME.xcodeproj"
+  -scheme "$SCHEME_NAME"
+  -configuration Release
+  -sdk macosx
+  -derivedDataPath "$DERIVED"
+)
+
+SIGNED_BUILD_OK=0
+echo "Trying signed build from current Xcode project settings..."
+if xcodebuild "${COMMON_BUILD_ARGS[@]}" build >/dev/null; then
+  SIGNED_BUILD_OK=1
+  echo "Signed build succeeded."
+else
+  echo "Signed build failed. Falling back to unsigned build..."
+  xcodebuild "${COMMON_BUILD_ARGS[@]}" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build >/dev/null
+fi
 
 APP_SRC="$DERIVED/Build/Products/Release/$APP_PRODUCT_NAME.app"
 if [[ ! -d "$APP_SRC" ]]; then
   echo "Build output missing: $APP_SRC" >&2
   exit 1
+fi
+
+if [[ "$SIGNED_BUILD_OK" -eq 0 ]]; then
+  SIGN_IDENTITY="$(
+    security find-identity -v -p codesigning 2>/dev/null \
+      | sed -n 's/.*"\\(Developer ID Application:.*\\)".*/\\1/p' \
+      | head -n 1
+  )"
+
+  if [[ -z "${SIGN_IDENTITY:-}" ]]; then
+    SIGN_IDENTITY="$(
+      security find-identity -v -p codesigning 2>/dev/null \
+        | sed -n 's/.*"\\(Apple Development:.*\\)".*/\\1/p' \
+        | head -n 1
+    )"
+  fi
+
+  if [[ -n "${SIGN_IDENTITY:-}" ]]; then
+    echo "Post-signing fallback build with identity: $SIGN_IDENTITY"
+    /usr/bin/codesign \
+      --force \
+      --deep \
+      --options runtime \
+      --timestamp \
+      --entitlements "$ENTITLEMENTS" \
+      --sign "$SIGN_IDENTITY" \
+      "$APP_SRC"
+  else
+    echo "No signing identity found; package remains unsigned."
+  fi
 fi
 
 rm -rf "$DIST" "$DMG_ROOT"
